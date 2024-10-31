@@ -1,54 +1,79 @@
-version: '3.8'
+version: '1'
+
 services:
-  backend:
+  # Service PostgreSQL
+  postgres-db:
+    image: postgres:alpine
+    environment:
+      POSTGRES_USER: adonis_user
+      POSTGRES_PASSWORD: adonis_password
+      POSTGRES_DB: adonis_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  # AdonisJS Backend
+  adonis-backend:
     build:
       context: ./backend
     ports:
       - "3333:3333"
     environment:
-      NODE_ENV: production
       DB_CONNECTION: pg
-      DB_HOST: db
+      DB_HOST: postgres-db
       DB_PORT: 5432
-      DB_USER: docker
-      DB_PASSWORD: docker
-      DB_DATABASE: projet_docker
-      APP_KEY: "DlXmcnA8Lm1FOqc9Tg2iOfPIS-93ytJt"
+      DB_USER: adonis_user
+      DB_PASSWORD: /run/secrets/db_password
+      DB_DATABASE: adonis_db
+      APP_KEY: /run/secrets/app_key
       HOST: 0.0.0.0
-      PORT: 3333
-      LOG_LEVEL: info
-      SESSION_DRIVER: cookie
+      NODE_ENV: ${NODE_ENV:-development}
+    secrets:
+      - db_password
+      - app_key
+    depends_on:
+      - postgres-db
     networks:
       - app-network
-    depends_on:
-      - db
 
-  front:
+    # Volume et commande pour le mode développement
+    profiles:
+      - dev
+    volumes:
+      - ./backend:/app
+    command: npm run dev
+
+    # Commande pour le mode production (sans volume pour garder l'app compilée)
+    profiles:
+      - prod
+    command: npm run start
+
+
+  # Nuxt 3 Frontend
+  nuxt-frontend:
     build:
-      context: ./front
+      context: ./frontend
     ports:
       - "3000:3000"
     environment:
-      NODE_ENV: production
-      API_URL: http://backend:3333
+      API_URL: http://adonis-backend:3333
+    depends_on:
+      - adonis-backend
     networks:
       - app-network
 
-  db:
-    image: postgres:17
-    environment:
-      POSTGRES_DB: projet_docker
-      POSTGRES_USER: docker
-      POSTGRES_PASSWORD: docker
-    ports:
-      - "5432:5432"
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    networks:
-      - app-network
-
+# Volumes pour la persistance de la base de données
 volumes:
-  db-data:
+  pgdata:
 
+# Réseau pour la communication entre les services
 networks:
   app-network:
+    driver: bridge
+
+secrets:
+  db_password:
+    external: true
+  app_key:
+    external: true

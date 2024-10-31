@@ -1,31 +1,27 @@
-# Build de l'application
+# Use the official Node.js image as base
 FROM node:20-alpine3.18 as base
+
+# All deps stage
 FROM base as deps
 WORKDIR /app/backend
-
-# Copier les fichiers package.json et package-lock.json
-COPY package*.json ./
-
-# Installer les dépendances de production
+COPY package.json package-lock.json ./
 RUN npm ci --force
 
+# Build stage
 FROM deps as build
 WORKDIR /app/backend
-
-# Copier tout le code source de l'application
 COPY . .
 
-# Build de l'application
 RUN node ace build --ignore-ts-errors
 
-# COPY
+# Production stage
 FROM base
 WORKDIR /app/backend
 COPY --from=deps /app/backend/node_modules /app/backend/node_modules
-COPY --from=build /app/backend/build /app/backend/
+COPY --from=build /app/backend/build /app/backend
 
-# Exposer le port pour le backend
+# Expose the port the app runs on
 EXPOSE 3333
 
-# Commande pour démarrer l'application
-CMD ["sh", "-c", "node bin/server.js"]
+# Command to run the application
+CMD ["sh", "-c", "node ./bin/server.js"]
